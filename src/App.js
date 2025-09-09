@@ -87,7 +87,7 @@ function App() {
     <div className="App">
       <div className="chat-container">
         <div className="chat-header">
-          <h2>Real-Time Chat</h2>
+          <h2>FORUM ELITE GLOBAL</h2>
           {/* --- TOMBOL GANTI TEMA --- */}
           <div className="theme-switcher">
             <button onClick={() => setTheme('theme-dark')} title="Mode Gelap">🌙</button>
