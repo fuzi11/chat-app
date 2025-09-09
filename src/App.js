@@ -1,154 +1,249 @@
-import './App.css';
+import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
-import { useEffect, useState, useRef } from 'react';
+import './App.css';
 
-// Hubungkan ke server backend menggunakan Environment Variable
-const socket = io.connect(process.env.REACT_APP_SERVER_URL);
+// ===================================================================
+// KONFIGURASI UTAMA - Pastikan URL ini benar
+// ===================================================================
+const SOCKET_URL = "https://chat-app-backend-production-045f.up.railway.app"; // TANPA GARIS MIRING DI AKHIR
 
-function App() {
-  const [user, setUser] = useState('');
-  const [message, setMessage] = useState('');
-  const [chatLog, setChatLog] = useState([]);
-  const chatBodyRef = useRef(null);
-  
-  // --- BARU: State untuk mengingat status moderator ---
-  const [isModerator, setIsModerator] = useState(false);
+const socket = io.connect(SOCKET_URL);
 
-  const scrollToBottom = () => {
-    if (chatBodyRef.current) {
-      chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
-    }
-  };
+// ===================================================================
+// KOMPONEN LOGIN
+// ===================================================================
+function LoginPage({ onLoginSuccess }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // --- BARU: Logika pengiriman pesan yang sudah diperbarui ---
-  const sendMessage = () => {
-    if (message.trim() === '' || user.trim() === '') {
-      alert("Nama dan pesan tidak boleh kosong.");
-      return;
-    }
-
-    // Cek jika user adalah 'fuzi' dan BELUM terverifikasi sebagai moderator
-    if (user.toLowerCase() === 'fuzi' && !isModerator) {
-        const password = prompt("Mode Moderator: Silakan masukkan password:");
-        if (password === "qwerty") {
-            // Jika password benar, set status moderator menjadi true dan kirim pesan
-            setIsModerator(true);
-            sendVerifiedMessage(true); // Kirim pesan sebagai moderator
-        } else {
-            alert("Password salah. Pesan dikirim sebagai user biasa.");
-            sendVerifiedMessage(false); // Kirim pesan sebagai user biasa
-        }
-    } else {
-        // Untuk user biasa atau 'fuzi' yang sudah terverifikasi
-        sendVerifiedMessage(isModerator);
-    }
-  };
-
-  const sendVerifiedMessage = (moderatorStatus) => {
-    const messageData = {
-      user: user,
-      message: message,
-      // Kirim password hanya jika diperlukan (opsional, bisa dihapus jika tidak dipakai di backend)
-      password: moderatorStatus ? "qwerty" : null,
-    };
-    
-    socket.emit('send_message', messageData);
-    
-    setChatLog((list) => [...list, { 
-      ...messageData, 
-      fromSelf: true, 
-      timestamp: new Date().toISOString(),
-      isModerator: moderatorStatus
-    }]);
-    setMessage('');
-  }
-  
-  // --- BARU: Fungsi untuk menghapus pesan ---
-  const handleDeleteMessage = (messageIdToDelete) => {
-      // Kirim event ke server dengan ID pesan dan status moderator PENGHAPUS
-      socket.emit('delete_message', { 
-          messageId: messageIdToDelete, 
-          // Backend akan memeriksa apakah user ini adalah pengirim asli ATAU moderator
-          user: user, // Kirim info user yang menghapus
-          isModerator: isModerator // Kirim status moderator yang menghapus
+  const handleLogin = async () => {
+    if (!username) { setError('Username tidak boleh kosong.'); return; }
+    setLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`${SOCKET_URL}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
       });
-  };
-
-  useEffect(() => {
-    socket.on('chat_history', (history) => setChatLog(history));
-    
-    // Saat menerima pesan baru
-    socket.on('receive_message', (data) => setChatLog((list) => [...list, data]));
-
-    // --- BARU: Listener untuk pesan yang diupdate (dihapus) ---
-    socket.on('message_updated', (updatedMessage) => {
-        setChatLog(prevLog => prevLog.map(msg => 
-            msg._id === updatedMessage._id ? updatedMessage : msg
-        ));
-    });
-
-    return () => {
-      socket.off('chat_history');
-      socket.off('receive_message');
-      socket.off('message_updated');
-    };
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [chatLog]);
-
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp) return '';
-    return new Date(timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      const data = await response.json();
+      if (!response.ok) { throw new Error(data.message); }
+      onLoginSuccess(data);
+    } catch (err) {
+      setError(err.message || "Tidak bisa terhubung ke server.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="App">
-      <div className="chat-container">
-        <div className="chat-header">
-          <h2>Real-Time Chat</h2>
+    <div className="login-container">
+      <h2>Selamat Datang</h2>
+      <p>Silakan masuk untuk memulai chat</p>
+      <input type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
+      <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleLogin()} />
+      <button onClick={handleLogin} disabled={loading}>{loading ? 'Loading...' : 'Masuk'}</button>
+      {error && <p className="error-message">{error}</p>}
+    </div>
+  );
+}
+
+
+// ===================================================================
+// KOMPONEN PROFIL
+// ===================================================================
+function ProfilePage({ user, onProfileUpdated, onBack }) {
+    const [newUsername, setNewUsername] = useState(user.username);
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleNameChange = async () => {
+        if(!newUsername || newUsername === user.username) return;
+        setLoading(true);
+        setError('');
+        try {
+            const response = await fetch(`${SOCKET_URL}/api/users/${user.userId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ newUsername: newUsername, newProfilePictureUrl: user.profilePictureUrl })
+            });
+            const updatedUser = await response.json();
+            if (!response.ok) throw new Error('Update profil gagal.');
+            onProfileUpdated(updatedUser);
+            alert('Username berhasil diperbarui!');
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="profile-container">
+            <button onClick={onBack} className="back-button">← Kembali ke Chat</button>
+            <h2>Profil Anda</h2>
+            <img src={user.profilePictureUrl || 'https://via.placeholder.com/120'} alt="Avatar" className="profile-avatar" />
+            <p>Ganti username:</p>
+            <input type="text" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} />
+            <button onClick={handleNameChange} disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan Nama'}</button>
+            {error && <p className="error-message">{error}</p>}
+        </div>
+    );
+}
+
+// ===================================================================
+// KOMPONEN CHAT UTAMA
+// ===================================================================
+function ChatPage({ user, onLogout, onNavigateToProfile, setTheme }) {
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const chatBodyRef = useRef(null);
+
+  useEffect(() => {
+    socket.emit('user_online', { userId: user.userId, username: user.username });
+    socket.on('chat_history', (history) => setMessages(history));
+    socket.on('receive_message', (msg) => setMessages(prev => [...prev, msg]));
+    socket.on('online_users_list', (users) => setOnlineUsers(users));
+    socket.on('message_updated', (updatedMsg) => {
+      setMessages(prev => prev.map(msg => msg._id === updatedMsg._id ? updatedMsg : msg));
+    });
+    return () => {
+      socket.off('chat_history');
+      socket.off('receive_message');
+      socket.off('online_users_list');
+      socket.off('message_updated');
+    };
+  }, [user.userId, user.username]);
+
+  useEffect(() => {
+    if (chatBodyRef.current) {
+      chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const handleSendMessage = () => {
+    if (newMessage.trim()) {
+      const messageData = {
+        userId: user.userId,
+        username: user.username,
+        message: newMessage,
+        isModerator: user.isModerator,
+      };
+      socket.emit('send_message', messageData);
+      setNewMessage('');
+    }
+  };
+  
+  const handleDeleteMessage = (messageId) => {
+      socket.emit('delete_message', { messageId, userId: user.userId, isModerator: user.isModerator });
+  };
+  
+  const formatTimestamp = (timestamp) => new Date(timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <div className="chat-layout">
+      <div className="sidebar">
+        <div className="profile-summary">
+            <img src={user.profilePictureUrl || 'https://via.placeholder.com/80'} alt="Avatar" />
+            <h4>{user.username}</h4>
+            <div className="profile-actions">
+                <button onClick={onNavigateToProfile}>Profil</button>
+                <button onClick={onLogout}>Keluar</button>
+            </div>
+        </div>
+        <div className="online-users">
+          <h4>Online ({onlineUsers.length})</h4>
+          <ul>
+            {onlineUsers.map(userId => <li key={userId}>User {userId}</li>)}
+          </ul>
+        </div>
+        {/* --- BARU: PENGATUR TEMA --- */}
+        <div className="theme-switcher">
+            <h4>Tema</h4>
+            <div className="theme-buttons">
+                <button onClick={() => setTheme('theme-dark')}>Gelap</button>
+                <button onClick={() => setTheme('theme-light')}>Terang</button>
+                <button onClick={() => setTheme('theme-reading')}>Baca</button>
+            </div>
+        </div>
+      </div>
+      <div className="chat-main">
+        <div className="chat-header-mobile">
+            <h2>Chat App</h2>
+            <p>Login sebagai: <strong>{user.username}</strong></p>
+            <button onClick={onLogout}>Keluar</button>
         </div>
         <div className="chat-body" ref={chatBodyRef}>
-          {chatLog.map((content) => (
-            <div key={content._id || Math.random()} className={content.fromSelf ? "message-self" : "message-other"}>
-              <div className="message-content">
-                <p>{content.message}</p>
+          {messages.map(msg => (
+            <div key={msg._id} className={`message-bubble ${msg.senderId === user.userId ? 'self' : ''}`}>
+              <div className="message-header">
+                <span style={{ color: msg.isModerator ? '#ff5e57' : '#0fb9b1', fontWeight: 'bold' }}>
+                  {msg.senderUsername}
+                  {msg.isModerator && ' (Mod)'}
+                </span>
+                <span className="timestamp">{formatTimestamp(msg.timestamp)}</span>
               </div>
-              <div className="message-meta">
-                <p style={{ color: content.isModerator ? 'red' : 'inherit', fontWeight: content.isModerator ? 'bold' : 'normal' }}>
-                  {content.fromSelf ? "You" : content.user}
-                  {content.isModerator && ' (Moderator)'}
-                </p>
-                <p>{formatTimestamp(content.timestamp)}</p>
-              </div>
-              {/* --- BARU: Tombol Hapus untuk Moderator --- */}
-              {isModerator && !content.fromSelf && !content.isDeleted && (
-                <button className="delete-button" onClick={() => handleDeleteMessage(content._id)}>X</button>
-              )}
+              <p className="message-text">{msg.message}</p>
+              {(msg.senderId === user.userId || user.isModerator) && !msg.isDeleted &&
+                <button className="delete-button" onClick={() => handleDeleteMessage(msg._id)}>Hapus</button>
+              }
             </div>
           ))}
         </div>
         <div className="chat-footer">
-          <input 
-            type="text" 
-            placeholder="Nama Anda..." 
-            onChange={(event) => setUser(event.target.value)}
-            disabled={isModerator && user.toLowerCase() === 'fuzi'} // Opsional: Kunci username jika sudah jadi moderator
-            value={user}
-          />
-          <input 
-            type="text"
-            value={message} 
-            placeholder="Ketik pesan..." 
-            onChange={(event) => setMessage(event.target.value)}
-            onKeyPress={(event) => {event.key === 'Enter' && sendMessage()}}
-          />
-          <button onClick={sendMessage}>Kirim</button>
+          <input type="text" value={newMessage} placeholder="Ketik pesan..." onChange={(e) => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} />
+          <button onClick={handleSendMessage}>Kirim</button>
         </div>
       </div>
     </div>
   );
+}
+
+
+// ===================================================================
+// KOMPONEN UTAMA APP (PENGATUR)
+// ===================================================================
+function App() {
+  const [user, setUser] = useState(null);
+  const [view, setView] = useState('login');
+  const [theme, setTheme] = useState('theme-dark'); // State untuk tema
+
+  // Mengubah class di body HTML saat tema berubah
+  useEffect(() => {
+    document.body.className = '';
+    document.body.classList.add(theme);
+  }, [theme]);
+
+  const handleLoginSuccess = (loggedInUser) => {
+    setUser(loggedInUser);
+    setView('chat');
+  };
+
+  const handleProfileUpdated = (updatedUser) => {
+      setUser(updatedUser);
+  };
+
+  const handleLogout = () => {
+    socket.emit('user_offline', user.userId);
+    setUser(null);
+    setView('login');
+  };
+
+  const renderView = () => {
+    switch (view) {
+      case 'chat':
+        return <ChatPage user={user} onLogout={handleLogout} onNavigateToProfile={() => setView('profile')} setTheme={setTheme} />;
+      case 'profile':
+        return <ProfilePage user={user} onProfileUpdated={handleProfileUpdated} onBack={() => setView('chat')} />;
+      default:
+        return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+    }
+  };
+
+  return <div className="App">{renderView()}</div>;
 }
 
 export default App;
