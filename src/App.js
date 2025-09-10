@@ -5,7 +5,8 @@ import './App.css';
 // ===================================================================
 // KONFIGURASI UTAMA
 // ===================================================================
-const SOCKET_URL = process.env.REACT_APP_SERVER_URL;
+const RAW_SOCKET_URL = process.env.REACT_APP_SERVER_URL || '';
+const SOCKET_URL = RAW_SOCKET_URL.replace(/\/$/, ''); // Menghapus / di akhir
 const socket = io.connect(SOCKET_URL);
 
 // --- BARU: Fungsi bantuan untuk mengubah Data URI (Base64) menjadi Blob ---
