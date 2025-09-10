@@ -5,21 +5,11 @@ import './App.css';
 // ===================================================================
 // KONFIGURASI UTAMA
 // ===================================================================
-const RAW_SOCKET_URL = process.env.REACT_APP_SERVER_URL || '';
+// Kode ini secara otomatis memperbaiki URL dari Environment Variable
+const RAW_SOCKET_URL = process.env.REACT_APP_SERVER_URL || 'https://chat-app-backend-production-045f.up.railway.app';
 const SOCKET_URL = RAW_SOCKET_URL.replace(/\/$/, ''); // Menghapus / di akhir
-const socket = io.connect(SOCKET_URL);
 
-// --- BARU: Fungsi bantuan untuk mengubah Data URI (Base64) menjadi Blob ---
-function dataURItoBlob(dataURI) {
-  const byteString = atob(dataURI.split(',')[1]);
-  const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
-  const ab = new ArrayBuffer(byteString.length);
-  const ia = new Uint8Array(ab);
-  for (let i = 0; i < byteString.length; i++) {
-    ia[i] = byteString.charCodeAt(i);
-  }
-  return new Blob([ab], { type: mimeString });
-}
+const socket = io.connect(SOCKET_URL);
 
 function App() {
   const [user, setUser] = useState('');
@@ -29,7 +19,6 @@ function App() {
   const [theme, setTheme] = useState('theme-dark');
   const chatBodyRef = useRef(null);
 
-  // State untuk fitur kamera/gambar
   const [showCamera, setShowCamera] = useState(false);
   const [capturedImage, setCapturedImage] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -37,13 +26,11 @@ function App() {
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Efek untuk mengubah tema
   useEffect(() => {
     document.body.className = '';
     document.body.classList.add(theme);
   }, [theme]);
   
-  // Efek untuk mengelola koneksi socket
   useEffect(() => {
     socket.on('chat_history', (history) => setChatLog(history));
     socket.on('receive_message', (data) => setChatLog((list) => [...list, data]));
@@ -57,14 +44,23 @@ function App() {
     };
   }, []);
 
-  // Efek untuk auto-scroll
   useEffect(() => {
     if (chatBodyRef.current) {
       chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
     }
   }, [chatLog]);
+  
+  function dataURItoBlob(dataURI) {
+    const byteString = atob(dataURI.split(',')[1]);
+    const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], { type: mimeString });
+  }
 
-  // --- FUNGSI PENGIRIMAN PESAN YANG SUDAH DIPERBAIKI ---
   const sendMessage = async () => {
     if (user.trim() === '') { alert("Nama tidak boleh kosong."); return; }
     if (message.trim() === '' && !capturedImage) { alert("Pesan atau gambar tidak boleh kosong."); return; }
@@ -89,8 +85,7 @@ function App() {
         const formData = new FormData();
         formData.append('image', imageBlob, 'upload.png');
 
-        const cleanUrl = `${SOCKET_URL.replace(/\/$/, '')}/api/upload-image`;
-        const uploadResponse = await fetch(cleanUrl, {
+        const uploadResponse = await fetch(`${SOCKET_URL}/api/upload-image`, {
           method: 'POST',
           body: formData,
         });
@@ -142,7 +137,6 @@ function App() {
         videoRef.current.play();
       }
     } catch (err) {
-      console.error("Gagal mengakses kamera:", err);
       alert("Tidak bisa mengakses kamera. Pastikan browser memiliki izin.");
       setShowCamera(false);
     }
@@ -253,4 +247,14 @@ function App() {
             <h3>Preview Gambar</h3>
             <img src={capturedImage} alt="Preview" className="captured-image-preview" />
             <div className="preview-actions">
-              <button onClick={() => setCapturedImage(null)} className="cancel-button">Batal</g>
+              <button onClick={() => setCapturedImage(null)} className="cancel-button">Batal</button>
+              <button onClick={sendMessage} className="send-image-button">Kirim Gambar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
