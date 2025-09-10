@@ -8,25 +8,23 @@ import './App.css';
 const SOCKET_URL = process.env.REACT_APP_SERVER_URL;
 const socket = io.connect(SOCKET_URL);
 
-// ===================================================================
-// KOMPONEN UNTUK MELIHAT GAMBAR (LIGHTBOX)
-// ===================================================================
-function ImageViewer({ imageUrl, onClose }) {
-  // Mencegah modal tertutup saat konten di dalam modal di-klik
-  const stopPropagation = (e) => e.stopPropagation();
+// Data Stiker (Anda bisa menambah/mengganti URL dari sumber lain)
+const STICKERS = [
+  { id: 'homer-smile', url: 'https://cdn.jsdelivr.net/gh/fanzeyi/simpsons-stickers@main/PNG/001.png' },
+  { id: 'homer-laugh', url: 'https://cdn.jsdelivr.net/gh/fanzeyi/simpsons-stickers@main/PNG/002.png' },
+  { id: 'homer-drool', url: 'https://cdn.jsdelivr.net/gh/fanzeyi/simpsons-stickers@main/PNG/010.png' },
+  { id: 'marge-love', url: 'https://cdn.jsdelivr.net/gh/fanzeyi/simpsons-stickers@main/PNG/021.png' },
+  { id: 'bart-cool', url: 'https://cdn.jsdelivr.net/gh/fanzeyi/simpsons-stickers@main/PNG/050.png' },
+  { id: 'lisa-idea', url: 'https://cdn.jsdelivr.net/gh/fanzeyi/simpsons-stickers@main/PNG/068.png' },
+];
 
-  return (
-    <div className="image-viewer-overlay" onClick={onClose}>
-      <div className="image-viewer-content" onClick={stopPropagation}>
-        <button className="close-button" onClick={onClose}>×</button>
-        <img src={imageUrl} alt="Tampilan Penuh" />
-        <a href={imageUrl} download={`chat-image-${Date.now()}.png`} className="download-button">
-          Unduh Gambar
-        </a>
-      </div>
-    </div>
-  );
-}
+// Fungsi bantuan untuk mengubah file menjadi Base64
+const fileToBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+});
 
 function App() {
   const [user, setUser] = useState('');
@@ -34,8 +32,10 @@ function App() {
   const [chatLog, setChatLog] = useState([]);
   const [isModerator, setIsModerator] = useState(false);
   const [theme, setTheme] = useState('theme-dark');
-  const [viewingImage, setViewingImage] = useState(null); // <-- BARU: State untuk melihat gambar
+  const [showStickers, setShowStickers] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const chatBodyRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     document.body.className = '';
@@ -61,31 +61,58 @@ function App() {
     }
   }, [chatLog]);
 
-  const sendMessage = () => {
-    // ... (Fungsi sendMessage Anda tetap sama seperti sebelumnya, tidak perlu diubah)
-    if (message.trim() === '' || user.trim() === '') {
-      alert("Nama dan pesan tidak boleh kosong.");
-      return;
-    }
+  const handleSendMessage = async (mediaFile = null, stickerId = null) => {
+    if (user.trim() === '') { alert("Nama tidak boleh kosong."); return; }
+    if (message.trim() === '' && !mediaFile && !stickerId) { return; }
+
+    let currentIsModerator = isModerator;
     if (user.toLowerCase() === 'fuzi' && !isModerator) {
       const password = prompt("Mode Moderator: Silakan masukkan password:");
       if (password === "qwerty") {
+        currentIsModerator = true;
         setIsModerator(true);
-        sendVerifiedMessage(true);
       } else {
         alert("Password salah. Pesan dikirim sebagai user biasa.");
-        sendVerifiedMessage(false);
+        currentIsModerator = false;
       }
-    } else {
-      sendVerifiedMessage(isModerator);
     }
-  };
+    
+    let mediaUrl = '';
+    let mediaType = '';
 
-  const sendVerifiedMessage = (moderatorStatus) => {
-    // ... (Fungsi sendVerifiedMessage Anda juga tetap sama, tidak perlu diubah)
-    const messageData = { user, message, isModerator: moderatorStatus };
+    if (mediaFile) {
+        setIsUploading(true);
+        try {
+            const base64File = await fileToBase64(mediaFile);
+            // Anda perlu endpoint backend untuk ini
+            // const uploadResponse = await fetch(`${SOCKET_URL}/api/upload-media`, { ... });
+            // const uploadData = await uploadResponse.json();
+            // mediaUrl = uploadData.mediaUrl;
+            // mediaType = uploadData.mediaType;
+            alert("Fitur upload belum terhubung ke backend. Ini hanya simulasi."); // HAPUS INI NANTI
+            console.log("Simulasi upload:", base64File.substring(0, 50) + "...");
+            // Untuk sekarang, kita tampilkan secara lokal saja
+        } catch (error) {
+            console.error("Gagal mengunggah file:", error);
+            alert("Gagal mengunggah file.");
+            setIsUploading(false);
+            return;
+        }
+        setIsUploading(false);
+    }
+
+    const messageData = { 
+      user, 
+      message: message.trim(),
+      // imageUrl: mediaType === 'image' ? mediaUrl : '',
+      // videoUrl: mediaType === 'video' ? mediaUrl : '',
+      stickerId: stickerId || '',
+      isModerator: currentIsModerator 
+    };
+    
     socket.emit('send_message', messageData);
     setChatLog((list) => [...list, { ...messageData, fromSelf: true, timestamp: new Date().toISOString() }]);
+    
     setMessage('');
   };
   
@@ -96,6 +123,23 @@ function App() {
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return '';
     return new Date(timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  };
+  
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+        if(file.size > 25 * 1024 * 1024) { // Batas 25MB
+            alert("Ukuran file terlalu besar. Maksimal 25MB.");
+            return;
+        }
+        handleSendMessage(file);
+    }
+    event.target.value = null; 
+  };
+
+  const findStickerUrl = (id) => {
+      const sticker = STICKERS.find(s => s.id === id);
+      return sticker ? sticker.url : '';
   };
 
   return (
@@ -111,22 +155,18 @@ function App() {
         <div className="chat-body" ref={chatBodyRef}>
           {chatLog.map((content) => (
             <div key={content._id || Math.random()} className={`message-bubble ${content.fromSelf ? 'self' : ''}`}>
-              <div className="message-header">
-                <span style={{ color: content.isModerator ? 'var(--accent-secondary)' : 'var(--accent-primary)', fontWeight: 'bold' }}>
-                  {content.fromSelf ? "You" : content.user}
-                  {content.isModerator && ' (Moderator)'}
-                </span>
-                <span className="timestamp">{formatTimestamp(content.timestamp)}</span>
-              </div>
-              {/* --- BARU: Buat gambar bisa di-klik --- */}
-              {content.imageUrl && 
-                <img 
-                  src={content.imageUrl} 
-                  alt="Konten chat" 
-                  className="chat-image" 
-                  onClick={() => setViewingImage(content.imageUrl)} 
-                />
-              }
+              {!content.stickerId && (
+                <div className="message-header">
+                  <span style={{ color: content.isModerator ? 'var(--accent-secondary)' : 'var(--accent-primary)', fontWeight: 'bold' }}>
+                    {content.fromSelf ? "You" : content.user}
+                    {content.isModerator && ' (Moderator)'}
+                  </span>
+                  <span className="timestamp">{formatTimestamp(content.timestamp)}</span>
+                </div>
+              )}
+              {content.imageUrl && <img src={content.imageUrl} alt="Konten chat" className="chat-image" />}
+              {content.videoUrl && <video src={content.videoUrl} controls className="chat-video" />}
+              {content.stickerId && <img src={findStickerUrl(content.stickerId)} alt="Stiker" className="chat-sticker" />}
               {content.message && <p className="message-text">{content.message}</p>}
               {isModerator && !content.fromSelf && !content.isDeleted && (
                 <button className="delete-button" onClick={() => handleDeleteMessage(content._id)}>×</button>
@@ -134,6 +174,16 @@ function App() {
             </div>
           ))}
         </div>
+        {showStickers && (
+            <div className="sticker-palette">
+                {STICKERS.map(sticker => (
+                    <img key={sticker.id} src={sticker.url} alt={sticker.id} onClick={() => {
+                        handleSendMessage(null, sticker.id);
+                        setShowStickers(false);
+                    }}/>
+                ))}
+            </div>
+        )}
         <div className="chat-footer">
           <input 
             type="text" 
@@ -142,19 +192,23 @@ function App() {
             disabled={isModerator && user.toLowerCase() === 'fuzi'}
             value={user}
           />
+          <div className="media-buttons">
+            <button onClick={() => setShowStickers(!showStickers)} title="Kirim Stiker">😃</button>
+            <input type="file" accept="image/*,video/*" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
+            <button onClick={() => fileInputRef.current.click()} title="Kirim Gambar/Video">📎</button>
+          </div>
           <input 
             type="text"
             value={message} 
             placeholder="Ketik pesan..." 
             onChange={(event) => setMessage(event.target.value)}
-            onKeyPress={(event) => {event.key === 'Enter' && sendMessage()}}
+            onKeyPress={(event) => {event.key === 'Enter' && handleSendMessage()}}
           />
-          <button onClick={sendMessage}>Kirim</button>
+          <button onClick={() => handleSendMessage()} disabled={isUploading}>
+            {isUploading ? 'Mengirim...' : 'Kirim'}
+          </button>
         </div>
       </div>
-      
-      {/* --- BARU: Tampilkan komponen ImageViewer jika ada gambar yang dilihat --- */}
-      {viewingImage && <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />}
     </div>
   );
 }
