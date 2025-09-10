@@ -41,6 +41,7 @@ body {
   display: flex; justify-content: space-between; align-items: center;
   padding: 1rem 1.5rem; border-bottom: 1px solid var(--bg-tertiary);
   background-color: var(--bg-secondary);
+  flex-shrink: 0;
 }
 .chat-header h2 { font-size: 1.2rem; color: var(--text-primary); }
 .theme-switcher { display: flex; gap: 0.5rem; }
@@ -80,41 +81,54 @@ body {
 .message-bubble:hover .delete-button { opacity: 1; }
 
 .chat-footer {
-  display: flex;
-  padding: 1rem;
-  gap: 0.75rem;
+  display: flex; padding: 1rem; gap: 0.75rem;
   background-color: var(--bg-secondary);
   border-top: 1px solid var(--bg-tertiary);
   align-items: center;
+  flex-shrink: 0;
 }
-
 .chat-footer input {
-  flex-grow: 1;
-  background-color: var(--bg-tertiary);
-  border: 1px solid var(--bg-tertiary);
-  color: var(--text-primary);
-  padding: 0.75rem;
-  border-radius: 8px;
-  font-size: 1rem;
-  min-width: 0; /* Perbaikan untuk mobile */
+  flex-grow: 1; background-color: var(--bg-tertiary);
+  border: 1px solid var(--bg-tertiary); color: var(--text-primary);
+  padding: 0.75rem; border-radius: 8px; font-size: 1rem;
+  min-width: 0;
 }
-
-.chat-footer input:first-child {
-  flex-grow: 0.6;
-  min-width: 100px;
-}
-
+.chat-footer input:first-child { flex-grow: 0.6; min-width: 100px; }
 .chat-footer button {
-  background-color: var(--accent-primary);
-  color: var(--bg-primary);
-  border: none;
-  padding: 0.75rem 1.25rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: transform 0.2s;
+  background-color: var(--accent-primary); color: var(--bg-primary);
+  border: none; padding: 0.75rem 1.25rem;
+  border-radius: 8px; cursor: pointer;
+  font-weight: bold; transition: transform 0.2s;
 }
 .chat-footer button:hover { transform: scale(1.05); }
+
+/* --- PERBAIKAN: TAMPILAN STIKER --- */
+.sticker-palette {
+    display: grid; /* Gunakan grid untuk tata letak yang rapi */
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); /* Kolom otomatis */
+    gap: 1rem; /* Jarak lebih besar */
+    padding: 1.5rem; /* Padding lebih besar */
+    background-color: var(--bg-secondary);
+    border-top: 1px solid var(--bg-tertiary);
+    max-height: 200px; /* Sedikit lebih tinggi */
+    overflow-y: auto;
+}
+.sticker-palette img {
+    width: 100%; /* Isi kolom grid */
+    height: auto;
+    cursor: pointer;
+    transition: transform 0.2s;
+    background-color: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 8px;
+}
+.sticker-palette img:hover { transform: scale(1.15); }
+
+.chat-image { max-width: 100%; height: auto; border-radius: 8px; margin-top: 0.5rem; display: block; }
+.chat-video { max-width: 100%; height: auto; border-radius: 8px; margin-top: 0.5rem; display: block; }
+.chat-sticker { max-width: 128px; max-height: 128px; object-fit: contain; }
+.message-bubble.sticker-message { background-color: transparent; padding: 0; box-shadow: none; border: none; }
+
 
 /* ================== TAMPILAN MOBILE (RESPONSIVE) ================== */
 @media (max-width: 600px) {
@@ -126,307 +140,28 @@ body {
   }
   .chat-header { padding: 0.75rem 1rem; }
   .chat-header h2 { font-size: 1rem; }
-  .chat-footer { padding: 0.5rem; gap: 0.5rem; flex-wrap: wrap; } /* Izinkan wrap jika perlu */
-  .chat-footer input { padding: 0.6rem; font-size: 0.9rem; }
-  .chat-footer button { padding: 0 1rem; }
-}
-
-
-/* ================== STYLE BARU UNTUK MEDIA (KAMERA/GAMBAR) ================== */
-.media-buttons {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.media-buttons button {
-  background-color: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: none;
-  border-radius: 8px;
-  padding: 0.75rem;
-  cursor: pointer;
-  font-size: 1.2rem;
-  line-height: 1;
-  transition: transform 0.2s;
-}
-.media-buttons button:hover {
-  transform: scale(1.1);
-}
-
-.camera-modal-overlay, .image-preview-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.camera-modal, .image-preview-modal {
-  background: var(--bg-primary);
-  padding: 1.5rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px var(--shadow-color);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  max-width: 90vw;
-  max-height: 90vh;
-  overflow: auto;
-}
-
-.camera-modal h3, .image-preview-modal h3 {
-  color: var(--accent-primary);
-  text-align: center;
-}
-
-.camera-preview {
-  width: 100%;
-  max-width: 480px; /* Lebar maksimum kamera */
-  height: auto;
-  border-radius: 8px;
-  background-color: #000;
-  display: block; /* Pastikan tidak ada ruang kosong di bawah video */
-}
-
-.camera-controls, .preview-actions {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: center;
-}
-
-.take-photo-button, .send-image-button {
-  background-color: var(--accent-green); /* Gunakan warna hijau */
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-.cancel-button {
-  background-color: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-.captured-image-preview {
-  max-width: 100%;
-  max-height: 400px; /* Batasi tinggi preview gambar */
-  height: auto;
-  border-radius: 8px;
-  object-fit: contain;
-  margin-bottom: 1rem;
-}
-
-/* Gambar di dalam chat bubble */
-.chat-image {
-  max-width: 100%;
-  height: auto;
-  border-radius: 8px;
-  margin-top: 0.5rem;
-  display: block; /* Pastikan gambar tidak inline */
-}
-
-/* ================== STYLE BARU UNTUK GAMBAR ================== */
-
-/* Membuat gambar di dalam chat bisa di-klik */
-.chat-image {
-  cursor: pointer;
-  transition: transform 0.2s ease-in-out;
-}
-
-.chat-image:hover {
-  transform: scale(1.03);
-}
-
-/* Overlay untuk menutupi seluruh layar */
-.image-viewer-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.8);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  padding: 20px;
-}
-
-/* Konten di dalam modal (gambar dan tombol) */
-.image-viewer-content {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-/* Gambar yang diperbesar */
-.image-viewer-content img {
-  max-width: 90vw;
-  max-height: 80vh;
-  object-fit: contain;
-  border-radius: 8px;
-}
-
-/* Tombol Tutup (X) */
-.close-button {
-  position: absolute;
-  top: -15px;
-  right: -15px;
-  background: white;
-  color: black;
-  border: none;
-  border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  font-size: 1.2rem;
-  font-weight: bold;
-  cursor: pointer;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-/* Tombol Unduh */
-.download-button {
-  background-color: var(--accent-primary);
-  color: var(--bg-primary);
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  text-decoration: none;
-  font-weight: bold;
-}
-
-/* ================== STYLE BARU UNTUK VIDEO & STIKER ================== */
-
-/* Video di dalam chat bubble */
-.chat-video {
-  max-width: 100%;
-  height: auto;
-  border-radius: 8px;
-  margin-top: 0.5rem;
-  display: block;
-}
-
-/* Stiker di dalam chat bubble */
-.chat-sticker {
-    width: 120px;
-    height: 120px;
-    object-fit: contain;
-}
-
-/* Menghilangkan background & padding untuk pesan stiker */
-.message-bubble:has(.chat-sticker) {
-    background-color: transparent;
-    padding: 0;
-}
-
-/* Palet stiker yang muncul di atas footer */
-.sticker-palette {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    padding: 1rem;
-    background-color: var(--bg-secondary);
-    border-top: 1px solid var(--bg-tertiary);
-    max-height: 150px;
-    overflow-y: auto;
-}
-
-.sticker-palette img {
-    width: 60px;
-    height: 60px;
-    cursor: pointer;
-    transition: transform 0.2s;
-}
-
-.sticker-palette img:hover {
-    transform: scale(1.1);
-}
-
-/* Mengubah tombol lampiran */
-.media-buttons button {
-  background-color: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: none;
-  border-radius: 8px;
-  padding: 0.75rem;
-  cursor: pointer;
-  font-size: 1.2rem;
-  line-height: 1;
-}
-
-/* ================== STYLE BARU UNTUK VIDEO & STIKER ================== */
-
-/* Video di dalam chat bubble */
-.chat-video {
-  max-width: 100%;
-  height: auto;
-  border-radius: 8px;
-  margin-top: 0.5rem;
-  display: block;
-}
-
-/* Stiker di dalam chat bubble */
-.chat-sticker {
-    max-width: 128px;
-    max-height: 128px;
-    object-fit: contain;
-}
-
-/* Menghilangkan background & padding untuk pesan stiker */
-.message-bubble.sticker-message {
-    background-color: transparent;
-    padding: 0;
-    box-shadow: none;
-    border: none;
-}
-
-/* Palet stiker yang muncul di atas footer */
-.sticker-palette {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    padding: 1rem;
-    background-color: var(--bg-secondary);
-    border-top: 1px solid var(--bg-tertiary);
-    max-height: 150px;
-    overflow-y: auto;
-}
-
-.sticker-palette img {
-    width: 64px;
-    height: 64px;
-    cursor: pointer;
-    transition: transform 0.2s;
-    background-color: var(--bg-tertiary);
-    border-radius: 8px;
-    padding: 4px;
-}
-
-.sticker-palette img:hover {
-    transform: scale(1.1);
-}
-
-/* Mengubah tombol lampiran */
-.media-buttons button {
-  background-color: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: none;
-  border-radius: 8px;
-  padding: 0.75rem;
-  cursor: pointer;
-  font-size: 1.2rem;
-  line-height: 1;
+  
+  /* --- PERBAIKAN: TAMPILAN FOOTER DI MOBILE --- */
+  .chat-footer { 
+    flex-direction: column; /* Susun vertikal */
+    padding: 0.75rem;
+    gap: 0.5rem;
+  }
+  .chat-footer .media-buttons {
+    order: 1; /* Pindahkan tombol media ke atas */
+    align-self: flex-start;
+  }
+  .chat-footer input[type="text"] {
+    width: 100%; /* Buat input mengisi lebar penuh */
+    order: 2;
+  }
+  .chat-footer button {
+    width: 100%; /* Buat tombol mengisi lebar penuh */
+    order: 3;
+    padding: 0.8rem;
+  }
+  .chat-footer input:first-child {
+    flex-grow: 1; /* Hapus grow spesifik */
+    min-width: none;
+  }
 }
