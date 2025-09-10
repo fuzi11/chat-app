@@ -8,7 +8,7 @@ import './App.css';
 const SOCKET_URL = process.env.REACT_APP_SERVER_URL;
 const socket = io.connect(SOCKET_URL);
 
-// --- BARU: Daftar Stiker Genshin Impact ---
+// Data Stiker (Genshin Impact)
 const STICKERS = [
   { id: 'paimon-ok', url: 'https://static.wikia.nocookie.net/gensin-impact/images/6/69/Icon_Emoji_Paimon%27s_Paintings_01.png' },
   { id: 'paimon-love', url: 'https://static.wikia.nocookie.net/gensin-impact/images/a/a3/Icon_Emoji_Paimon%27s_Paintings_02.png' },
@@ -16,17 +16,8 @@ const STICKERS = [
   { id: 'paimon-scared', url: 'https://static.wikia.nocookie.net/gensin-impact/images/3/30/Icon_Emoji_Paimon%27s_Paintings_05.png' },
   { id: 'klee-boom', url: 'https://static.wikia.nocookie.net/gensin-impact/images/c/c3/Icon_Emoji_Paimon%27s_Paintings_09.png' },
   { id: 'zhongli-order', url: 'https://static.wikia.nocookie.net/gensin-impact/images/e/e8/Icon_Emoji_Paimon%27s_Paintings_16.png' },
-  { id: 'qiqi-fallen', url: 'https://static.wikia.nocookie.net/gensin-impact/images/6/6f/Icon_Emoji_Paimon%27s_Paintings_20.png' },
-  { id: 'ayaka-tea', url: 'https://static.wikia.nocookie.net/gensin-impact/images/3/3a/Icon_Emoji_Ayaka_2.png' },
 ];
 
-// Fungsi bantuan untuk mengubah file menjadi Base64
-const fileToBase64 = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = error => reject(error);
-});
 
 function App() {
   const [user, setUser] = useState('');
@@ -75,29 +66,44 @@ function App() {
         setIsModerator(true);
       } else {
         alert("Password salah.");
-        // Kirim sebagai user biasa jika ada pesan/stiker
         if(message.trim() === '' && !stickerId) return;
         currentIsModerator = false;
       }
     }
     
-    let mediaUrl = '';
-    let mediaType = '';
+    let imageUrl = '';
+    let videoUrl = '';
 
+    // --- BARU: LOGIKA UPLOAD FILE YANG SEBENARNYA ---
     if (mediaFile) {
         setIsUploading(true);
-        // Placeholder untuk logika upload. Ganti dengan implementasi Cloudinary Anda.
         try {
-            console.log("Simulasi mengunggah file:", mediaFile.name);
-            alert("Fitur upload belum terhubung ke backend Cloudinary. Ini hanya simulasi frontend.");
-            // const base64File = await fileToBase64(mediaFile);
-            // const uploadResponse = await fetch(`${SOCKET_URL}/api/upload-media`, ...);
-            // const uploadData = await uploadResponse.json();
-            // mediaUrl = uploadData.mediaUrl;
-            // mediaType = uploadData.mediaType;
+            const formData = new FormData();
+            formData.append('image', mediaFile); // Backend mengharapkan field bernama 'image'
+
+            const uploadResponse = await fetch(`${SOCKET_URL}/api/upload-image`, {
+                method: 'POST',
+                body: formData,
+            });
+            
+            const uploadData = await uploadResponse.json();
+
+            if (!uploadResponse.ok) {
+                throw new Error(uploadData.message || 'Gagal mengunggah file.');
+            }
+            
+            // Tentukan apakah itu gambar atau video berdasarkan tipe file
+            if (mediaFile.type.startsWith('image/')) {
+                imageUrl = uploadData.imageUrl;
+            } else if (mediaFile.type.startsWith('video/')) {
+                videoUrl = uploadData.imageUrl; // Cloudinary mengembalikan URL yang sama untuk video
+            }
+
         } catch (error) {
             console.error("Gagal mengunggah file:", error);
-            alert("Gagal mengunggah file.");
+            alert(`Gagal mengunggah file: ${error.message}`);
+            setIsUploading(false);
+            return;
         } finally {
             setIsUploading(false);
         }
@@ -106,8 +112,8 @@ function App() {
     const messageData = { 
       user, 
       message: message.trim(),
-      // imageUrl: mediaType === 'image' ? mediaUrl : '',
-      // videoUrl: mediaType === 'video' ? mediaUrl : '',
+      imageUrl: imageUrl,
+      videoUrl: videoUrl,
       stickerId: stickerId || '',
       isModerator: currentIsModerator 
     };
@@ -139,17 +145,15 @@ function App() {
     event.target.value = null; 
   };
   
-  // --- BARU: Fungsi untuk menangani paste dari keyboard ---
   const handlePaste = (event) => {
     const items = event.clipboardData.items;
     for (const item of items) {
       if (item.type.indexOf("image") !== -1) {
         const file = item.getAsFile();
-        // Cek jika user ingin mengirim gambar yang di-paste
         if (window.confirm("Anda ingin mengirim gambar dari clipboard?")) {
             handleSendMessage(file);
         }
-        event.preventDefault(); // Mencegah gambar di-paste sebagai teks
+        event.preventDefault();
         return;
       }
     }
@@ -211,7 +215,6 @@ function App() {
             value={user}
           />
           <div className="media-buttons">
-            <button onClick={startCamera} title="Buka Kamera">📸</button> {/* <-- TAMBAHKAN TOMBOL INI */}
             <button onClick={() => setShowStickers(!showStickers)} title="Kirim Stiker">😃</button>
             <input type="file" accept="image/*,video/*" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
             <button onClick={() => fileInputRef.current.click()} title="Kirim Gambar/Video">📎</button>
@@ -222,7 +225,7 @@ function App() {
             placeholder="Ketik pesan..." 
             onChange={(event) => setMessage(event.target.value)}
             onKeyPress={(event) => {event.key === 'Enter' && handleSendMessage()}}
-            onPaste={handlePaste} /* <-- BARU: Tambahkan event listener paste */
+            onPaste={handlePaste}
           />
           <button onClick={() => handleSendMessage()} disabled={isUploading}>
             {isUploading ? 'Mengirim...' : 'Kirim'}
