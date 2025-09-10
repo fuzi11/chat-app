@@ -88,7 +88,8 @@ function App() {
         const formData = new FormData();
         formData.append('image', imageBlob, 'upload.png');
 
-        const uploadResponse = await fetch(`${SOCKET_URL}/api/upload-image`, {
+        const cleanUrl = `${SOCKET_URL.replace(/\/$/, '')}/api/upload-image`;
+        const uploadResponse = await fetch(cleanUrl, {
           method: 'POST',
           body: formData,
         });
