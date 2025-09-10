@@ -11,13 +11,13 @@ const socket = io.connect(SOCKET_URL);
 
 // Data Stiker (Genshin Impact)
 const STICKERS = [
-  { id: 'Ningguang Loves Money', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-ningguang-loves-money-512x512.png' },
-  { id: 'Dendro', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-dendro-512x512.png' },
-  { id: 'Geo', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-geo-512x512.png' },
-  { id: 'Electro', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-electro-512x512.png' },
-  { id: 'Pyro', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-pyro-512x512.png' },
-  { id: 'Anemo', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-anemo-512x512.png' },
-  { id: 'Naganohara Yoimiya Firework', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-naganohara-yoimiya-firework-512x512.png' },
+  { id: 'Ningguang Loves Money', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-impact-ningguang-loves-money-512x512.png' },
+  { id: 'Dendro', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-impact-dendro-512x512.png' },
+  { id: 'Geo', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-impact-geo-512x512.png' },
+  { id: 'Electro', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-impact-electro-512x512.png' },
+  { id: 'Pyro', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-impact-pyro-512x512.png' },
+  { id: 'Anemo', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-impact-anemo-512x512.png' },
+  { id: 'Naganohara Yoimiya Firework', url: 'https://mystickermania.com/cdn/stickers/genshin-impact-impact/genshin-naganohara-yoimiya-firework-512x512.png' },
   { id: 'Fischl', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-fischl-512x512.png' },
   { id: 'Collei Embarrassed', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-collei-embarrassed-512x512.png' },
   { id: 'Tighnari Noisily', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-tighnari-noisily-512x512.png' },
