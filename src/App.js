@@ -5,9 +5,24 @@ import './App.css';
 // ===================================================================
 // KONFIGURASI UTAMA
 // ===================================================================
-const RAW_SOCKET_URL = process.env.REACT_APP_SERVER_URL || '';
-const SOCKET_URL = RAW_SOCKET_URL.replace(/\/$/, ''); // Otomatis menghapus / di akhir
+const SOCKET_URL = process.env.REACT_APP_SERVER_URL;
 const socket = io.connect(SOCKET_URL);
+
+// --- BARU: Komponen untuk menampilkan gambar (Lightbox) ---
+function ImageViewer({ imageUrl, onClose }) {
+  const stopPropagation = (e) => e.stopPropagation();
+  return (
+    <div className="image-viewer-overlay" onClick={onClose}>
+      <div className="image-viewer-content" onClick={stopPropagation}>
+        <button className="close-button" onClick={onClose}>×</button>
+        <img src={imageUrl} alt="Tampilan Penuh" />
+        <a href={imageUrl} download={`chat-image-${Date.now()}.png`} className="download-button">
+          Unduh Gambar
+        </a>
+      </div>
+    </div>
+  );
+}
 
 // Data Stiker (Genshin Impact)
 const STICKERS = [
@@ -17,7 +32,7 @@ const STICKERS = [
   { id: 'Electro', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-impact-electro-512x512.png' },
   { id: 'Pyro', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-impact-pyro-512x512.png' },
   { id: 'Anemo', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-impact-anemo-512x512.png' },
-  { id: 'Naganohara Yoimiya Firework', url: 'https://mystickermania.com/cdn/stickers/genshin-impact-impact/genshin-naganohara-yoimiya-firework-512x512.png' },
+  { id: 'Naganohara Yoimiya Firework', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-yoimiya-firework-512x512.png' },
   { id: 'Fischl', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-fischl-512x512.png' },
   { id: 'Collei Embarrassed', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-collei-embarrassed-512x512.png' },
   { id: 'Tighnari Noisily', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-tighnari-noisily-512x512.png' },
@@ -53,18 +68,14 @@ const STICKERS = [
 ];
 
 
-
-
 function App() {
   const [user, setUser] = useState('');
   const [message, setMessage] = useState('');
   const [chatLog, setChatLog] = useState([]);
   const [isModerator, setIsModerator] = useState(false);
   const [theme, setTheme] = useState('theme-dark');
-  const [showStickers, setShowStickers] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [viewingImage, setViewingImage] = useState(null); // <-- BARU: State untuk melacak gambar
   const chatBodyRef = useRef(null);
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
     document.body.className = '';
@@ -90,73 +101,30 @@ function App() {
     }
   }, [chatLog]);
 
-  const handleSendMessage = async (mediaFile = null, stickerId = null) => {
-    if (user.trim() === '') { alert("Nama tidak boleh kosong."); return; }
-    if (message.trim() === '' && !mediaFile && !stickerId) { return; }
+  const sendMessage = () => {
+    if (message.trim() === '' || user.trim() === '') {
+      alert("Nama dan pesan tidak boleh kosong.");
+      return;
+    }
 
-    let currentIsModerator = isModerator;
     if (user.toLowerCase() === 'fuzi' && !isModerator) {
       const password = prompt("Mode Moderator: Silakan masukkan password:");
       if (password === "qwerty") {
-        currentIsModerator = true;
         setIsModerator(true);
+        sendVerifiedMessage(true);
       } else {
-        alert("Password salah.");
-        if(message.trim() === '' && !stickerId) return;
-        currentIsModerator = false;
+        alert("Password salah. Pesan dikirim sebagai user biasa.");
+        sendVerifiedMessage(false);
       }
+    } else {
+      sendVerifiedMessage(isModerator);
     }
-    
-    let imageUrl = '';
-    let videoUrl = '';
+  };
 
-    // --- BARU: LOGIKA UPLOAD FILE YANG SEBENARNYA ---
-    if (mediaFile) {
-        setIsUploading(true);
-        try {
-            const formData = new FormData();
-            formData.append('image', mediaFile); // Backend mengharapkan field bernama 'image'
-
-            const uploadResponse = await fetch(`${SOCKET_URL}/api/upload-image`, {
-                method: 'POST',
-                body: formData,
-            });
-            
-            const uploadData = await uploadResponse.json();
-
-            if (!uploadResponse.ok) {
-                throw new Error(uploadData.message || 'Gagal mengunggah file.');
-            }
-            
-            // Tentukan apakah itu gambar atau video berdasarkan tipe file
-            if (mediaFile.type.startsWith('image/')) {
-                imageUrl = uploadData.imageUrl;
-            } else if (mediaFile.type.startsWith('video/')) {
-                videoUrl = uploadData.imageUrl; // Cloudinary mengembalikan URL yang sama untuk video
-            }
-
-        } catch (error) {
-            console.error("Gagal mengunggah file:", error);
-            alert(`Gagal mengunggah file: ${error.message}`);
-            setIsUploading(false);
-            return;
-        } finally {
-            setIsUploading(false);
-        }
-    }
-
-    const messageData = { 
-      user, 
-      message: message.trim(),
-      imageUrl: imageUrl,
-      videoUrl: videoUrl,
-      stickerId: stickerId || '',
-      isModerator: currentIsModerator 
-    };
-    
+  const sendVerifiedMessage = (moderatorStatus) => {
+    const messageData = { user, message, isModerator: moderatorStatus };
     socket.emit('send_message', messageData);
     setChatLog((list) => [...list, { ...messageData, fromSelf: true, timestamp: new Date().toISOString() }]);
-    
     setMessage('');
   };
   
@@ -168,43 +136,12 @@ function App() {
     if (!timestamp) return '';
     return new Date(timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
   };
-  
-  const handleFileChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-        if(file.size > 25 * 1024 * 1024) { // Batas 25MB
-            alert("Ukuran file terlalu besar. Maksimal 25MB.");
-            return;
-        }
-        handleSendMessage(file);
-    }
-    event.target.value = null; 
-  };
-  
-  const handlePaste = (event) => {
-    const items = event.clipboardData.items;
-    for (const item of items) {
-      if (item.type.indexOf("image") !== -1) {
-        const file = item.getAsFile();
-        if (window.confirm("Anda ingin mengirim gambar dari clipboard?")) {
-            handleSendMessage(file);
-        }
-        event.preventDefault();
-        return;
-      }
-    }
-  };
-
-  const findStickerUrl = (id) => {
-      const sticker = STICKERS.find(s => s.id === id);
-      return sticker ? sticker.url : '';
-  };
 
   return (
     <div className="App">
       <div className="chat-container">
         <div className="chat-header">
-          <h2>PERKUMPULAN RAHASIA</h2>
+          <h2>Real-Time Chat</h2>
           <div className="theme-switcher">
             <button onClick={() => setTheme('theme-dark')} title="Mode Gelap">🌙</button>
             <button onClick={() => setTheme('theme-light')} title="Mode Terang">☀️</button>
@@ -212,19 +149,23 @@ function App() {
         </div>
         <div className="chat-body" ref={chatBodyRef}>
           {chatLog.map((content) => (
-            <div key={content._id || Math.random()} className={`message-bubble ${content.stickerId ? 'sticker-message' : ''} ${content.fromSelf ? 'self' : ''}`}>
-              {!content.stickerId && (
-                <div className="message-header">
-                  <span style={{ color: content.isModerator ? 'var(--accent-secondary)' : 'var(--accent-primary)', fontWeight: 'bold' }}>
-                    {content.fromSelf ? "You" : content.user}
-                    {content.isModerator && ' (Moderator)'}
-                  </span>
-                  <span className="timestamp">{formatTimestamp(content.timestamp)}</span>
-                </div>
-              )}
-              {content.imageUrl && <img src={content.imageUrl} alt="Konten chat" className="chat-image" />}
-              {content.videoUrl && <video src={content.videoUrl} controls className="chat-video" />}
-              {content.stickerId && <img src={findStickerUrl(content.stickerId)} alt={content.stickerId} className="chat-sticker" />}
+            <div key={content._id || Math.random()} className={`message-bubble ${content.fromSelf ? 'self' : ''}`}>
+              <div className="message-header">
+                <span style={{ color: content.isModerator ? 'var(--accent-secondary)' : 'var(--accent-primary)', fontWeight: 'bold' }}>
+                  {content.fromSelf ? "You" : content.user}
+                  {content.isModerator && ' (Moderator)'}
+                </span>
+                <span className="timestamp">{formatTimestamp(content.timestamp)}</span>
+              </div>
+              {/* --- BARU: Tambahkan onClick untuk melihat gambar --- */}
+              {content.imageUrl && 
+                <img 
+                  src={content.imageUrl} 
+                  alt="Konten chat" 
+                  className="chat-image" 
+                  onClick={() => setViewingImage(content.imageUrl)} 
+                />
+              }
               {content.message && <p className="message-text">{content.message}</p>}
               {isModerator && !content.fromSelf && !content.isDeleted && (
                 <button className="delete-button" onClick={() => handleDeleteMessage(content._id)}>×</button>
@@ -232,16 +173,6 @@ function App() {
             </div>
           ))}
         </div>
-        {showStickers && (
-            <div className="sticker-palette">
-                {STICKERS.map(sticker => (
-                    <img key={sticker.id} src={sticker.url} alt={sticker.id} onClick={() => {
-                        handleSendMessage(null, sticker.id);
-                        setShowStickers(false);
-                    }}/>
-                ))}
-            </div>
-        )}
         <div className="chat-footer">
           <input 
             type="text" 
@@ -250,24 +181,19 @@ function App() {
             disabled={isModerator && user.toLowerCase() === 'fuzi'}
             value={user}
           />
-          <div className="media-buttons">
-            <button onClick={() => setShowStickers(!showStickers)} title="Kirim Stiker">😃</button>
-            <input type="file" accept="image/*,video/*" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
-            <button onClick={() => fileInputRef.current.click()} title="Kirim Gambar/Video">📎</button>
-          </div>
           <input 
             type="text"
             value={message} 
             placeholder="Ketik pesan..." 
             onChange={(event) => setMessage(event.target.value)}
-            onKeyPress={(event) => {event.key === 'Enter' && handleSendMessage()}}
-            onPaste={handlePaste}
+            onKeyPress={(event) => {event.key === 'Enter' && sendMessage()}}
           />
-          <button onClick={() => handleSendMessage()} disabled={isUploading}>
-            {isUploading ? 'Mengirim...' : 'Kirim'}
-          </button>
+          <button onClick={sendMessage}>Kirim</button>
         </div>
       </div>
+      
+      {/* --- BARU: Tampilkan ImageViewer jika ada gambar yang sedang dilihat --- */}
+      {viewingImage && <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />}
     </div>
   );
 }
