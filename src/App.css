@@ -30,7 +30,9 @@ body {
 
 /* ================== LAYOUT CHAT ================== */
 .chat-container {
-  width: 500px; height: 90vh; max-height: 800px;
+  /* UBAH: Lebar chat lebih besar untuk tampilan desktop */
+  width: 700px; 
+  height: 90vh; max-height: 800px;
   background: var(--bg-primary); border-radius: 12px;
   box-shadow: 0 8px 32px var(--shadow-color);
   display: flex; flex-direction: column;
@@ -105,8 +107,27 @@ body {
 /* Gambar & Video */
 .chat-image, .chat-video { max-width: 100%; height: auto; border-radius: 8px; margin-top: 0.5rem; display: block; }
 
+/* --- PERBAIKAN: UKURAN STIKER NORMAL --- */
+.chat-sticker { 
+  max-width: 64px; /* Ukuran maksimal stiker di dalam bubble */
+  max-height: 64px;
+  object-fit: contain;
+  vertical-align: middle; /* Untuk posisi lebih baik jika di samping teks */
+}
+.message-bubble.sticker-message {
+  background-color: transparent;
+  padding: 0;
+  box-shadow: none;
+  border: none;
+  /* Tambahan: Pastikan teks di samping stiker terlihat normal */
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+
 /* ================== TAMPILAN MOBILE (RESPONSIVE) ================== */
-@media (max-width: 600px) {
+@media (max-width: 768px) { /* UBAH: Breakpoint responsif agar lebih awal */
   .App { align-items: flex-start; }
   .chat-container {
     width: 100vw; height: 100vh;
