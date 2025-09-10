@@ -122,7 +122,18 @@ body {
     border-radius: 8px;
     padding: 8px;
 }
-.sticker-palette img:hover { transform: scale(1.15); }
+/* GANTI ATURAN .sticker-palette YANG LAMA DENGAN INI */
+.sticker-palette {
+  display: grid;
+  /* UBAH: Lebar minimal kolom sekarang 100px */
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); 
+  gap: 1.25rem; /* UBAH: Jarak antar stiker diperbesar */
+  padding: 1.5rem;
+  background-color: var(--bg-secondary);
+  border-top: 1px solid var(--bg-tertiary);
+  max-height: 220px; /* UBAH: Sedikit lebih tinggi agar muat lebih banyak */
+  overflow-y: auto;
+}
 
 .chat-image { max-width: 100%; height: auto; border-radius: 8px; margin-top: 0.5rem; display: block; }
 .chat-video { max-width: 100%; height: auto; border-radius: 8px; margin-top: 0.5rem; display: block; }
