@@ -23,7 +23,7 @@ const STICKERS = [
   { id: 'Electro', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-impact-electro-512x512.png' },
   { id: 'Pyro', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-impact-pyro-512x512.png' },
   { id: 'Anemo', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-impact-anemo-512x512.png' },
-  { id: 'Naganohara Yoimiya Firework', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-yoimiya-firework-512x512.png' },
+  { id: 'Naganohara Yoimiya Firework', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-naganohara-yoimiya-firework-512x512.png' },
   { id: 'Fischl', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-fischl-512x512.png' },
   { id: 'Collei Embarrassed', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-collei-embarrassed-512x512.png' },
   { id: 'Tighnari Noisily', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-tighnari-noisily-512x512.png' },
@@ -58,6 +58,7 @@ const STICKERS = [
   { id: 'Kaeya Crying', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-kaeya-crying-512x512.png' }
 ];
 
+
 // Komponen untuk melihat gambar (Lightbox)
 function ImageViewer({ imageUrl, onClose }) {
   const stopPropagation = (e) => e.stopPropagation();
@@ -74,9 +75,6 @@ function ImageViewer({ imageUrl, onClose }) {
   );
 }
 
-
-
-
 function App() {
   const [user, setUser] = useState('');
   const [message, setMessage] = useState('');
@@ -85,6 +83,7 @@ function App() {
   const [theme, setTheme] = useState('theme-dark');
   const [showStickers, setShowStickers] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [viewingImage, setViewingImage] = useState(null);
   const chatBodyRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -132,12 +131,11 @@ function App() {
     let imageUrl = '';
     let videoUrl = '';
 
-    // --- BARU: LOGIKA UPLOAD FILE YANG SEBENARNYA ---
     if (mediaFile) {
         setIsUploading(true);
         try {
             const formData = new FormData();
-            formData.append('image', mediaFile); // Backend mengharapkan field bernama 'image'
+            formData.append('image', mediaFile);
 
             const uploadResponse = await fetch(`${SOCKET_URL}/api/upload-image`, {
                 method: 'POST',
@@ -150,18 +148,15 @@ function App() {
                 throw new Error(uploadData.message || 'Gagal mengunggah file.');
             }
             
-            // Tentukan apakah itu gambar atau video berdasarkan tipe file
             if (mediaFile.type.startsWith('image/')) {
                 imageUrl = uploadData.imageUrl;
             } else if (mediaFile.type.startsWith('video/')) {
-                videoUrl = uploadData.imageUrl; // Cloudinary mengembalikan URL yang sama untuk video
+                videoUrl = uploadData.videoUrl;
             }
 
         } catch (error) {
             console.error("Gagal mengunggah file:", error);
             alert(`Gagal mengunggah file: ${error.message}`);
-            setIsUploading(false);
-            return;
         } finally {
             setIsUploading(false);
         }
@@ -283,6 +278,7 @@ function App() {
             placeholder="Ketik pesan..." 
             onChange={(event) => setMessage(event.target.value)}
             onKeyPress={(event) => {event.key === 'Enter' && handleSendMessage()}}
+            onPaste={handlePaste}
           />
           <button onClick={() => handleSendMessage()} disabled={isUploading}>
             {isUploading ? 'Mengirim...' : 'Kirim'}
