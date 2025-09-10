@@ -8,6 +8,18 @@ import './App.css';
 const SOCKET_URL = process.env.REACT_APP_SERVER_URL;
 const socket = io.connect(SOCKET_URL);
 
+// --- BARU: Fungsi bantuan untuk mengubah Data URI (Base64) menjadi Blob ---
+function dataURItoBlob(dataURI) {
+  const byteString = atob(dataURI.split(',')[1]);
+  const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([ab], { type: mimeString });
+}
+
 function App() {
   const [user, setUser] = useState('');
   const [message, setMessage] = useState('');
@@ -16,20 +28,21 @@ function App() {
   const [theme, setTheme] = useState('theme-dark');
   const chatBodyRef = useRef(null);
 
-  // --- BARU: State untuk fitur kamera/gambar ---
+  // State untuk fitur kamera/gambar
   const [showCamera, setShowCamera] = useState(false);
-  const [capturedImage, setCapturedImage] = useState(null); // Base64 atau URL blob
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const fileInputRef = useRef(null); // Untuk input file dari galeri
+  const fileInputRef = useRef(null);
 
-  // --- EFEK UNTUK MENGUBAH TEMA ---
+  // Efek untuk mengubah tema
   useEffect(() => {
     document.body.className = '';
     document.body.classList.add(theme);
   }, [theme]);
   
-  // --- EFEK UNTUK MENGELOLA KONEKSI SOCKET ---
+  // Efek untuk mengelola koneksi socket
   useEffect(() => {
     socket.on('chat_history', (history) => setChatLog(history));
     socket.on('receive_message', (data) => setChatLog((list) => [...list, data]));
@@ -43,26 +56,18 @@ function App() {
     };
   }, []);
 
-  // --- EFEK UNTUK AUTO-SCROLL ---
+  // Efek untuk auto-scroll
   useEffect(() => {
     if (chatBodyRef.current) {
       chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
     }
   }, [chatLog]);
 
-  // --- FUNGSI UNTUK MENGIRIM PESAN ATAU GAMBAR ---
+  // --- FUNGSI PENGIRIMAN PESAN YANG SUDAH DIPERBAIKI ---
   const sendMessage = async () => {
-    if (user.trim() === '') {
-      alert("Nama tidak boleh kosong.");
-      return;
-    }
+    if (user.trim() === '') { alert("Nama tidak boleh kosong."); return; }
+    if (message.trim() === '' && !capturedImage) { alert("Pesan atau gambar tidak boleh kosong."); return; }
 
-    if (message.trim() === '' && !capturedImage) {
-      alert("Pesan atau gambar tidak boleh kosong.");
-      return;
-    }
-
-    // Verifikasi moderator
     let currentIsModerator = isModerator;
     if (user.toLowerCase() === 'fuzi' && !isModerator) {
       const password = prompt("Mode Moderator: Silakan masukkan password:");
@@ -77,20 +82,17 @@ function App() {
 
     let imageUrlToSend = '';
     if (capturedImage) {
-      // --- LOGIKA UPLOAD GAMBAR KE BACKEND ---
-      // Ini adalah bagian yang MEMBUTUHKAN IMPLEMENTASI BACKEND FILE UPLOAD
-      // Contoh ini ASUMSIKAN backend Anda memiliki endpoint /api/upload-image
-      // yang menerima base64 atau FormData dan mengembalikan URL
+      setIsUploading(true);
       try {
+        const imageBlob = dataURItoBlob(capturedImage);
+        const formData = new FormData();
+        formData.append('image', imageBlob, 'upload.png');
+
         const uploadResponse = await fetch(`${SOCKET_URL}/api/upload-image`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: capturedImage }) // Mengirim base64
-          // ATAU jika backend Anda mengharapkan FormData:
-          // const formData = new FormData();
-          // formData.append('image', dataURItoBlob(capturedImage));
-          // body: formData
+          body: formData,
         });
+        
         const uploadData = await uploadResponse.json();
         if (!uploadResponse.ok) throw new Error(uploadData.message || "Gagal upload gambar.");
         imageUrlToSend = uploadData.imageUrl;
@@ -98,14 +100,16 @@ function App() {
         console.error("Gagal mengunggah gambar:", error);
         alert("Gagal mengunggah gambar.");
         setCapturedImage(null);
+        setIsUploading(false);
         return;
       }
+      setIsUploading(false);
     }
 
     const messageData = { 
       user, 
-      message: message.trim(), // Pastikan pesan tidak kosong string jika hanya gambar
-      imageUrl: imageUrlToSend, // Sertakan URL gambar
+      message: message.trim(),
+      imageUrl: imageUrlToSend,
       isModerator: currentIsModerator 
     };
     
@@ -113,11 +117,10 @@ function App() {
     setChatLog((list) => [...list, { ...messageData, fromSelf: true, timestamp: new Date().toISOString() }]);
     
     setMessage('');
-    setCapturedImage(null); // Reset gambar setelah dikirim
-    setShowCamera(false); // Sembunyikan kamera jika sedang tampil
+    setCapturedImage(null);
+    setShowCamera(false);
   };
   
-  // --- FUNGSI UNTUK MENGHAPUS PESAN ---
   const handleDeleteMessage = (messageId) => {
     socket.emit('delete_message', { messageId, user, isModerator });
   };
@@ -127,7 +130,6 @@ function App() {
     return new Date(timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
   };
 
-  // --- BARU: FUNGSI KAMERA ---
   const startCamera = async () => {
     setCapturedImage(null);
     setShowCamera(true);
@@ -146,8 +148,7 @@ function App() {
 
   const stopCamera = () => {
     if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = videoRef.current.srcObject.getTracks();
-      tracks.forEach(track => track.stop());
+      videoRef.current.srcObject.getTracks().forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
     setShowCamera(false);
@@ -159,23 +160,19 @@ function App() {
       canvasRef.current.width = videoRef.current.videoWidth;
       canvasRef.current.height = videoRef.current.videoHeight;
       context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
-      const imageData = canvasRef.current.toDataURL('image/png'); // Ambil gambar sebagai Base64
+      const imageData = canvasRef.current.toDataURL('image/png');
       setCapturedImage(imageData);
-      stopCamera(); // Hentikan kamera setelah foto diambil
+      stopCamera();
     }
   };
 
-  // --- BARU: FUNGSI PILIH FILE DARI GALERI ---
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setCapturedImage(reader.result); // Simpan sebagai Base64
-      };
+      reader.onloadend = () => { setCapturedImage(reader.result); };
       reader.readAsDataURL(file);
     }
-    // Reset input agar bisa memilih file yang sama lagi jika dibatalkan
     event.target.value = null; 
   };
 
@@ -199,8 +196,8 @@ function App() {
                 </span>
                 <span className="timestamp">{formatTimestamp(content.timestamp)}</span>
               </div>
+              {content.imageUrl && <img src={content.imageUrl} alt="chat content" className="chat-image" />}
               {content.message && <p className="message-text">{content.message}</p>}
-              {content.imageUrl && <img src={content.imageUrl} alt="chat image" className="chat-image" />}
               {isModerator && !content.fromSelf && !content.isDeleted && (
                 <button className="delete-button" onClick={() => handleDeleteMessage(content._id)}>×</button>
               )}
@@ -215,26 +212,25 @@ function App() {
             disabled={isModerator && user.toLowerCase() === 'fuzi'}
             value={user}
           />
-          {/* --- TOMBOL UNTUK KAMERA DAN GALERI --- */}
           <div className="media-buttons">
-            <button onClick={startCamera} className="camera-button" title="Buka Kamera">📸</button>
+            <button onClick={startCamera} title="Buka Kamera">📸</button>
             <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
-            <button onClick={() => fileInputRef.current.click()} className="gallery-button" title="Pilih dari Galeri">🖼️</button>
+            <button onClick={() => fileInputRef.current.click()} title="Pilih dari Galeri">🖼️</button>
           </div>
-          
           <input 
             type="text"
             value={message} 
-            placeholder="Ketik pesan..." 
+            placeholder={capturedImage ? "Gambar siap dikirim..." : "Ketik pesan..."}
             onChange={(event) => setMessage(event.target.value)}
             onKeyPress={(event) => {event.key === 'Enter' && sendMessage()}}
-            disabled={capturedImage !== null} /* Disable jika ada gambar menunggu */
+            disabled={capturedImage !== null}
           />
-          <button onClick={sendMessage} disabled={message.trim() === '' && !capturedImage}>Kirim</button>
+          <button onClick={sendMessage} disabled={(message.trim() === '' && !capturedImage) || isUploading}>
+            {isUploading ? 'Mengirim...' : 'Kirim'}
+          </button>
         </div>
       </div>
 
-      {/* --- MODAL KAMERA --- */}
       {showCamera && (
         <div className="camera-modal-overlay">
           <div className="camera-modal">
@@ -249,21 +245,10 @@ function App() {
         </div>
       )}
 
-      {/* --- PREVIEW GAMBAR YANG DIAMBIL/DIPILIH --- */}
-      {capturedImage && (
+      {capturedImage && !isUploading && (
         <div className="image-preview-overlay">
           <div className="image-preview-modal">
             <h3>Preview Gambar</h3>
             <img src={capturedImage} alt="Preview" className="captured-image-preview" />
             <div className="preview-actions">
-              <button onClick={() => setCapturedImage(null)} className="cancel-button">Batal</button>
-              <button onClick={sendMessage} className="send-image-button">Kirim Gambar</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default App;
+              <button onClick={() => setCapturedImage(null)} className="cancel-button">Batal</g>
