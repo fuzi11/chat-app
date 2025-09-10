@@ -211,6 +211,7 @@ function App() {
             value={user}
           />
           <div className="media-buttons">
+            <button onClick={startCamera} title="Buka Kamera">📸</button> {/* <-- TAMBAHKAN TOMBOL INI */}
             <button onClick={() => setShowStickers(!showStickers)} title="Kirim Stiker">😃</button>
             <input type="file" accept="image/*,video/*" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
             <button onClick={() => fileInputRef.current.click()} title="Kirim Gambar/Video">📎</button>
