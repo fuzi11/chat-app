@@ -5,7 +5,14 @@ import './App.css';
 // ===================================================================
 // KONFIGURASI UTAMA
 // ===================================================================
-const SOCKET_URL = process.env.REACT_APP_SERVER_URL;
+const RAW_SOCKET_URL = process.env.REACT_APP_SERVER_URL || '';
+const SOCKET_URL = RAW_SOCKET_URL.replace(/\/$/, ''); // Otomatis menghapus / di akhir
+const socket = io.connect(SOCKET_URL);
+
+// KONFIGURASI UTAMA
+// ===================================================================
+const RAW_SOCKET_URL = process.env.REACT_APP_SERVER_URL || '';
+const SOCKET_URL = RAW_SOCKET_URL.replace(/\/$/, ''); // Otomatis menghapus / di akhir
 const socket = io.connect(SOCKET_URL);
 
 // Data Stiker (Genshin Impact)
@@ -67,13 +74,15 @@ function ImageViewer({ imageUrl, onClose }) {
   );
 }
 
+
+
+
 function App() {
   const [user, setUser] = useState('');
   const [message, setMessage] = useState('');
   const [chatLog, setChatLog] = useState([]);
   const [isModerator, setIsModerator] = useState(false);
   const [theme, setTheme] = useState('theme-dark');
-  const [viewingImage, setViewingImage] = useState(null);
   const [showStickers, setShowStickers] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const chatBodyRef = useRef(null);
@@ -83,7 +92,7 @@ function App() {
     document.body.className = '';
     document.body.classList.add(theme);
   }, [theme]);
-
+  
   useEffect(() => {
     socket.on('chat_history', (history) => setChatLog(history));
     socket.on('receive_message', (data) => setChatLog((list) => [...list, data]));
@@ -120,18 +129,36 @@ function App() {
       }
     }
     
-    let imageUrl = '', videoUrl = '';
+    let imageUrl = '';
+    let videoUrl = '';
+
+    // --- BARU: LOGIKA UPLOAD FILE YANG SEBENARNYA ---
     if (mediaFile) {
         setIsUploading(true);
         try {
             const formData = new FormData();
-            formData.append('image', mediaFile);
-            const uploadResponse = await fetch(`${SOCKET_URL}/api/upload-image`, { method: 'POST', body: formData });
+            formData.append('image', mediaFile); // Backend mengharapkan field bernama 'image'
+
+            const uploadResponse = await fetch(`${SOCKET_URL}/api/upload-image`, {
+                method: 'POST',
+                body: formData,
+            });
+            
             const uploadData = await uploadResponse.json();
-            if (!uploadResponse.ok) throw new Error(uploadData.message || 'Gagal unggah file.');
-            if (mediaFile.type.startsWith('image/')) imageUrl = uploadData.imageUrl;
-            else if (mediaFile.type.startsWith('video/')) videoUrl = uploadData.videoUrl;
+
+            if (!uploadResponse.ok) {
+                throw new Error(uploadData.message || 'Gagal mengunggah file.');
+            }
+            
+            // Tentukan apakah itu gambar atau video berdasarkan tipe file
+            if (mediaFile.type.startsWith('image/')) {
+                imageUrl = uploadData.imageUrl;
+            } else if (mediaFile.type.startsWith('video/')) {
+                videoUrl = uploadData.imageUrl; // Cloudinary mengembalikan URL yang sama untuk video
+            }
+
         } catch (error) {
+            console.error("Gagal mengunggah file:", error);
             alert(`Gagal mengunggah file: ${error.message}`);
             setIsUploading(false);
             return;
@@ -141,12 +168,17 @@ function App() {
     }
 
     const messageData = { 
-      user, message: message.trim(), imageUrl, videoUrl,
-      stickerId: stickerId || '', isModerator: currentIsModerator 
+      user, 
+      message: message.trim(),
+      imageUrl: imageUrl,
+      videoUrl: videoUrl,
+      stickerId: stickerId || '',
+      isModerator: currentIsModerator 
     };
     
     socket.emit('send_message', messageData);
     setChatLog((list) => [...list, { ...messageData, fromSelf: true, timestamp: new Date().toISOString() }]);
+    
     setMessage('');
   };
   
@@ -154,14 +186,41 @@ function App() {
     socket.emit('delete_message', { messageId, user, isModerator });
   };
   
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    return new Date(timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  };
+  
   const handleFileChange = (event) => {
     const file = event.target.files[0];
-    if (file) handleSendMessage(file);
+    if (file) {
+        if(file.size > 25 * 1024 * 1024) { // Batas 25MB
+            alert("Ukuran file terlalu besar. Maksimal 25MB.");
+            return;
+        }
+        handleSendMessage(file);
+    }
     event.target.value = null; 
   };
   
-  const findStickerUrl = (id) => STICKERS.find(s => s.id === id)?.url || '';
-  const formatTimestamp = (timestamp) => new Date(timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  const handlePaste = (event) => {
+    const items = event.clipboardData.items;
+    for (const item of items) {
+      if (item.type.indexOf("image") !== -1) {
+        const file = item.getAsFile();
+        if (window.confirm("Anda ingin mengirim gambar dari clipboard?")) {
+            handleSendMessage(file);
+        }
+        event.preventDefault();
+        return;
+      }
+    }
+  };
+
+  const findStickerUrl = (id) => {
+      const sticker = STICKERS.find(s => s.id === id);
+      return sticker ? sticker.url : '';
+  };
 
   return (
     <div className="App">
