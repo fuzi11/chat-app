@@ -8,22 +8,6 @@ import './App.css';
 const SOCKET_URL = process.env.REACT_APP_SERVER_URL;
 const socket = io.connect(SOCKET_URL);
 
-// --- BARU: Komponen untuk menampilkan gambar (Lightbox) ---
-function ImageViewer({ imageUrl, onClose }) {
-  const stopPropagation = (e) => e.stopPropagation();
-  return (
-    <div className="image-viewer-overlay" onClick={onClose}>
-      <div className="image-viewer-content" onClick={stopPropagation}>
-        <button className="close-button" onClick={onClose}>×</button>
-        <img src={imageUrl} alt="Tampilan Penuh" />
-        <a href={imageUrl} download={`chat-image-${Date.now()}.png`} className="download-button">
-          Unduh Gambar
-        </a>
-      </div>
-    </div>
-  );
-}
-
 // Data Stiker (Genshin Impact)
 const STICKERS = [
   { id: 'Ningguang Loves Money', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-impact-ningguang-loves-money-512x512.png' },
@@ -67,6 +51,21 @@ const STICKERS = [
   { id: 'Kaeya Crying', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-kaeya-crying-512x512.png' }
 ];
 
+// Komponen untuk melihat gambar (Lightbox)
+function ImageViewer({ imageUrl, onClose }) {
+  const stopPropagation = (e) => e.stopPropagation();
+  return (
+    <div className="image-viewer-overlay" onClick={onClose}>
+      <div className="image-viewer-content" onClick={stopPropagation}>
+        <button className="close-button" onClick={onClose}>×</button>
+        <img src={imageUrl} alt="Tampilan Penuh" />
+        <a href={imageUrl} download={`chat-image-${Date.now()}.png`} className="download-button">
+          Unduh Gambar
+        </a>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const [user, setUser] = useState('');
@@ -74,14 +73,17 @@ function App() {
   const [chatLog, setChatLog] = useState([]);
   const [isModerator, setIsModerator] = useState(false);
   const [theme, setTheme] = useState('theme-dark');
-  const [viewingImage, setViewingImage] = useState(null); // <-- BARU: State untuk melacak gambar
+  const [viewingImage, setViewingImage] = useState(null);
+  const [showStickers, setShowStickers] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const chatBodyRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     document.body.className = '';
     document.body.classList.add(theme);
   }, [theme]);
-  
+
   useEffect(() => {
     socket.on('chat_history', (history) => setChatLog(history));
     socket.on('receive_message', (data) => setChatLog((list) => [...list, data]));
@@ -101,28 +103,48 @@ function App() {
     }
   }, [chatLog]);
 
-  const sendMessage = () => {
-    if (message.trim() === '' || user.trim() === '') {
-      alert("Nama dan pesan tidak boleh kosong.");
-      return;
-    }
+  const handleSendMessage = async (mediaFile = null, stickerId = null) => {
+    if (user.trim() === '') { alert("Nama tidak boleh kosong."); return; }
+    if (message.trim() === '' && !mediaFile && !stickerId) { return; }
 
+    let currentIsModerator = isModerator;
     if (user.toLowerCase() === 'fuzi' && !isModerator) {
       const password = prompt("Mode Moderator: Silakan masukkan password:");
       if (password === "qwerty") {
+        currentIsModerator = true;
         setIsModerator(true);
-        sendVerifiedMessage(true);
       } else {
-        alert("Password salah. Pesan dikirim sebagai user biasa.");
-        sendVerifiedMessage(false);
+        alert("Password salah.");
+        if(message.trim() === '' && !stickerId) return;
+        currentIsModerator = false;
       }
-    } else {
-      sendVerifiedMessage(isModerator);
     }
-  };
+    
+    let imageUrl = '', videoUrl = '';
+    if (mediaFile) {
+        setIsUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('image', mediaFile);
+            const uploadResponse = await fetch(`${SOCKET_URL}/api/upload-image`, { method: 'POST', body: formData });
+            const uploadData = await uploadResponse.json();
+            if (!uploadResponse.ok) throw new Error(uploadData.message || 'Gagal unggah file.');
+            if (mediaFile.type.startsWith('image/')) imageUrl = uploadData.imageUrl;
+            else if (mediaFile.type.startsWith('video/')) videoUrl = uploadData.videoUrl;
+        } catch (error) {
+            alert(`Gagal mengunggah file: ${error.message}`);
+            setIsUploading(false);
+            return;
+        } finally {
+            setIsUploading(false);
+        }
+    }
 
-  const sendVerifiedMessage = (moderatorStatus) => {
-    const messageData = { user, message, isModerator: moderatorStatus };
+    const messageData = { 
+      user, message: message.trim(), imageUrl, videoUrl,
+      stickerId: stickerId || '', isModerator: currentIsModerator 
+    };
+    
     socket.emit('send_message', messageData);
     setChatLog((list) => [...list, { ...messageData, fromSelf: true, timestamp: new Date().toISOString() }]);
     setMessage('');
@@ -132,16 +154,20 @@ function App() {
     socket.emit('delete_message', { messageId, user, isModerator });
   };
   
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp) return '';
-    return new Date(timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file) handleSendMessage(file);
+    event.target.value = null; 
   };
+  
+  const findStickerUrl = (id) => STICKERS.find(s => s.id === id)?.url || '';
+  const formatTimestamp = (timestamp) => new Date(timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
   return (
     <div className="App">
       <div className="chat-container">
         <div className="chat-header">
-          <h2>Real-Time Chat</h2>
+          <h2>PERKUMPULAN RAHASIA</h2>
           <div className="theme-switcher">
             <button onClick={() => setTheme('theme-dark')} title="Mode Gelap">🌙</button>
             <button onClick={() => setTheme('theme-light')} title="Mode Terang">☀️</button>
@@ -149,23 +175,19 @@ function App() {
         </div>
         <div className="chat-body" ref={chatBodyRef}>
           {chatLog.map((content) => (
-            <div key={content._id || Math.random()} className={`message-bubble ${content.fromSelf ? 'self' : ''}`}>
-              <div className="message-header">
-                <span style={{ color: content.isModerator ? 'var(--accent-secondary)' : 'var(--accent-primary)', fontWeight: 'bold' }}>
-                  {content.fromSelf ? "You" : content.user}
-                  {content.isModerator && ' (Moderator)'}
-                </span>
-                <span className="timestamp">{formatTimestamp(content.timestamp)}</span>
-              </div>
-              {/* --- BARU: Tambahkan onClick untuk melihat gambar --- */}
-              {content.imageUrl && 
-                <img 
-                  src={content.imageUrl} 
-                  alt="Konten chat" 
-                  className="chat-image" 
-                  onClick={() => setViewingImage(content.imageUrl)} 
-                />
-              }
+            <div key={content._id || Math.random()} className={`message-bubble ${content.stickerId ? 'sticker-message' : ''} ${content.fromSelf ? 'self' : ''}`}>
+              {!content.stickerId && (
+                <div className="message-header">
+                  <span style={{ color: content.isModerator ? 'var(--accent-secondary)' : 'var(--accent-primary)', fontWeight: 'bold' }}>
+                    {content.fromSelf ? "You" : content.user}
+                    {content.isModerator && ' (Moderator)'}
+                  </span>
+                  <span className="timestamp">{formatTimestamp(content.timestamp)}</span>
+                </div>
+              )}
+              {content.imageUrl && <img src={content.imageUrl} alt="Konten chat" className="chat-image" onClick={() => setViewingImage(content.imageUrl)} />}
+              {content.videoUrl && <video src={content.videoUrl} controls className="chat-video" />}
+              {content.stickerId && <img src={findStickerUrl(content.stickerId)} alt={content.stickerId} className="chat-sticker" />}
               {content.message && <p className="message-text">{content.message}</p>}
               {isModerator && !content.fromSelf && !content.isDeleted && (
                 <button className="delete-button" onClick={() => handleDeleteMessage(content._id)}>×</button>
@@ -173,6 +195,16 @@ function App() {
             </div>
           ))}
         </div>
+        {showStickers && (
+            <div className="sticker-palette">
+                {STICKERS.map(sticker => (
+                    <img key={sticker.id} src={sticker.url} alt={sticker.id} onClick={() => {
+                        handleSendMessage(null, sticker.id);
+                        setShowStickers(false);
+                    }}/>
+                ))}
+            </div>
+        )}
         <div className="chat-footer">
           <input 
             type="text" 
@@ -181,18 +213,23 @@ function App() {
             disabled={isModerator && user.toLowerCase() === 'fuzi'}
             value={user}
           />
+          <div className="media-buttons">
+            <button onClick={() => setShowStickers(!showStickers)} title="Kirim Stiker">😃</button>
+            <input type="file" accept="image/*,video/*" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
+            <button onClick={() => fileInputRef.current.click()} title="Kirim Gambar/Video">📎</button>
+          </div>
           <input 
             type="text"
             value={message} 
             placeholder="Ketik pesan..." 
             onChange={(event) => setMessage(event.target.value)}
-            onKeyPress={(event) => {event.key === 'Enter' && sendMessage()}}
+            onKeyPress={(event) => {event.key === 'Enter' && handleSendMessage()}}
           />
-          <button onClick={sendMessage}>Kirim</button>
+          <button onClick={() => handleSendMessage()} disabled={isUploading}>
+            {isUploading ? 'Mengirim...' : 'Kirim'}
+          </button>
         </div>
       </div>
-      
-      {/* --- BARU: Tampilkan ImageViewer jika ada gambar yang sedang dilihat --- */}
       {viewingImage && <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />}
     </div>
   );
