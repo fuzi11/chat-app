@@ -30,9 +30,7 @@ body {
 
 /* ================== LAYOUT CHAT ================== */
 .chat-container {
-  /* UBAH: Lebar chat lebih besar untuk tampilan desktop */
-  width: 700px; 
-  height: 90vh; max-height: 800px;
+  width: 500px; height: 90vh; max-height: 800px;
   background: var(--bg-primary); border-radius: 12px;
   box-shadow: 0 8px 32px var(--shadow-color);
   display: flex; flex-direction: column;
@@ -107,27 +105,39 @@ body {
 /* Gambar & Video */
 .chat-image, .chat-video { max-width: 100%; height: auto; border-radius: 8px; margin-top: 0.5rem; display: block; }
 
-/* --- PERBAIKAN: UKURAN STIKER NORMAL --- */
+/* --- PERBAIKAN: UKURAN STIKER DI DALAM CHAT --- */
 .chat-sticker { 
-  max-width: 64px; /* Ukuran maksimal stiker di dalam bubble */
-  max-height: 64px;
+  max-width: 80px; /* Ukuran stiker dikecilkan menjadi lebih standar */
+  max-height: 80px;
   object-fit: contain;
-  vertical-align: middle; /* Untuk posisi lebih baik jika di samping teks */
 }
 .message-bubble.sticker-message {
-  background-color: transparent;
-  padding: 0;
-  box-shadow: none;
-  border: none;
-  /* Tambahan: Pastikan teks di samping stiker terlihat normal */
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  background-color: transparent; padding: 0;
+  box-shadow: none; border: none;
 }
+
+/* --- PERBAIKAN: TAMPILAN PALET STIKER --- */
+.sticker-palette {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); /* Kolom diperkecil */
+    gap: 0.75rem; /* Jarak diperkecil */
+    padding: 1rem; /* Padding diperkecil */
+    background-color: var(--bg-secondary);
+    border-top: 1px solid var(--bg-tertiary);
+    max-height: 180px; /* Tinggi dikurangi */
+    overflow-y: auto;
+}
+.sticker-palette img {
+    width: 100%; height: auto;
+    cursor: pointer; transition: transform 0.2s;
+    background-color: var(--bg-tertiary);
+    border-radius: 8px; padding: 4px;
+}
+.sticker-palette img:hover { transform: scale(1.15); }
 
 
 /* ================== TAMPILAN MOBILE (RESPONSIVE) ================== */
-@media (max-width: 768px) { /* UBAH: Breakpoint responsif agar lebih awal */
+@media (max-width: 600px) {
   .App { align-items: flex-start; }
   .chat-container {
     width: 100vw; height: 100vh;
