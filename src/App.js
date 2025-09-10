@@ -11,7 +11,7 @@ const socket = io.connect(SOCKET_URL);
 
 // Data Stiker (Genshin Impact)
 const STICKERS = [
-  { id: 'paimon-ok', url: 'https://static.wikia.nocookie.net/gensin-impact/images/6/69/Icon_Emoji_Paimon%27s_Paintings_01.png' },
+  { id: 'Ningguang Loves Money', url: 'https://mystickermania.com/cdn/stickers/genshin-impact/genshin-impact-ningguang-loves-money-512x512.png' },
   { id: 'paimon-love', url: 'https://static.wikia.nocookie.net/gensin-impact/images/a/a3/Icon_Emoji_Paimon%27s_Paintings_02.png' },
   { id: 'paimon-hungry', url: 'https://static.wikia.nocookie.net/gensin-impact/images/a/a5/Icon_Emoji_Paimon%27s_Paintings_03.png' },
   { id: 'paimon-scared', url: 'https://static.wikia.nocookie.net/gensin-impact/images/3/30/Icon_Emoji_Paimon%27s_Paintings_05.png' },
